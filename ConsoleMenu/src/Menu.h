@@ -8,33 +8,58 @@
 #include <map>
 #include <list>
 #include <windows.h>
+#include <TCHAR.h>
+#include <iostream>
 
 #undef GetMessage
 
+namespace Menu
+{
+	using tstring = std::basic_string<TCHAR, std::char_traits<TCHAR>, std::allocator<TCHAR>>;
+	using tcout = std::basic_ostream<TCHAR, std::char_traits<TCHAR>>;
+	
+#ifdef UNICODE
+#define GETCH  _getwch
+#else
+#define GETCH  _getch
+#endif
 class MenuItem
 {
+
 protected:
 
-	std::string _caption{ "" };
-	int32_t _hotkey{ 0 };
+	tstring _caption{ _T("") };
+	size_t _hotkey{ 0u };
 	std::function<bool()> _callback{ nullptr };
 	bool _isVisible{ true };
 	bool _isSelected{ false };
 
 	// message
-	std::string _errorMessage{ "Error" };
-	std::string _successMessage{ "Success" };
+	tstring _errorMessage { _T("Error") };
+	tstring _successMessage{ _T("Success") };
 	bool _showMessage{ false };
 	bool _callbackResult{ false };
 	bool _alwaysShowMessage{ true };
 
+	// context assotiated with this menu
+	void * _assotiatedContext{ nullptr };
+
+	//
+	tcout & _outstream
+	{ 
+#ifdef UNICODE
+		std::wcout
+#else
+		std::cout
+#endif
+	};
 public:
 
 	// default c-tor
 	MenuItem() = default;
 
 	// c-tor
-	explicit MenuItem(const std::string &caption) :_caption(caption) {};
+	explicit MenuItem(const tstring &caption) :_caption(caption) {};
 
 	// virtual d-tor
 	virtual ~MenuItem() = default;
@@ -64,7 +89,7 @@ public:
 	void Connect(std::function<bool()> callback);
 
 	// set hotkey code
-	void SetHotkey(int32_t code);
+	void SetHotkey(size_t code);
 
 	// return true if item is marked as visible
 	bool IsVisible() const;
@@ -76,26 +101,33 @@ public:
 	bool IsMessageVisible() const;
 
 	// return caption of item
-	const std::string& GetCaption() const;
+	const tstring& GetCaption() const;
 
 	// return message base on callback return result
 	// if callback executed successfull return success message else error message
-	const std::string& GetMessage();
+	const tstring& GetMessage();
 
 	// return assigned hotkey
-	uint32_t GetHotKey() const;
+	size_t GetHotKey() const;
 
 	// return length of item's caption
 	size_t GetCaptionLength() const;
 
 	// set error message
-	void SetErrorMessage(std::string message);
+	void SetErrorMessage(tstring message);
 
 	// set success message
-	void SetSuccessMessage(std::string message);
+	void SetSuccessMessage(tstring message);
 	
 	//
 	virtual void Execute() {};
+
+	//
+	void SetContext(void* context);
+
+	//
+	void * GetContext() const;
+
 };
 
 class MenuNode : public MenuItem
@@ -123,7 +155,7 @@ public:
 	};
 
 	// c-tor
-	explicit MenuNode(const std::string &caption);
+	explicit MenuNode(const tstring &caption);
 
 	// v d-tor
 	virtual ~MenuNode();
@@ -133,6 +165,9 @@ public:
 
 	// Call menu
 	void Execute() override;
+
+	//
+	void SetOutputHandle(HANDLE handle);
 
 	// Reset all menu items
 	void Reset();
@@ -151,21 +186,25 @@ public:
 
 	// set maximum visible menu items in node
 	// this one do not change recursively this parameter 
-	void SetMaxVisibleMenuItems(uint8_t items);
+	void SetMaxVisibleMenuItems(size_t items);
 
 	// return maximum visible menu items count
-	uint8_t GetMaxVisibleMenuItems() const;
+	size_t GetMaxVisibleMenuItems() const;
 
 private:
+
+	// modification lock
+	bool _inCallback{ false };
+	bool _modifiedInCallback{ false };
 
 	// vector of menu items
 	std::vector<std::shared_ptr<MenuItem>> _menuItems;
 
 	// map of hotkeys
-	std::map<int32_t, std::weak_ptr<MenuItem>> _hotkeys;
+	std::map<size_t, std::weak_ptr<MenuItem>> _hotkeys;
 
 	// list of illegal hotkey letters
-	std::list<char> _illegalList{ ' ', '/', '.', ',' };
+	std::list<TCHAR> _illegalList{ _T(' '), _T('/'), _T('.'), _T(',') };
 
 	//
 	HotkeyPolicy _hkpolicy{ HotkeyPolicy::hp_letters };
@@ -174,10 +213,10 @@ private:
 	VisibleScrollPolicy _vsp{ VisibleScrollPolicy::vsp_center };
 
 	// length of the biggest line in menu items
-	uint8_t _hotkeyOffset{ 0u };
+	size_t _hotkeyOffset{ 0u };
 
 	// maximum visible menu items
-	uint8_t _maxVisibleItems{ 3u };
+	size_t _maxVisibleItems{ 3u };
 
 	void OnBack();
 	void SetNextSelected();
@@ -192,7 +231,10 @@ private:
 	}
 	void AssignHotkey(std::reference_wrapper<std::shared_ptr<MenuItem>> item);
 
-	bool IsHotkeyAvailable(int32_t hotkey);
+	bool IsHotkeyAvailable(size_t hotkey);
+
+	bool IsHotKeyInUse(size_t hotkey);
+
 
 public:
 
@@ -208,7 +250,7 @@ protected:
 	bool _isProcessing{ false };
 
 	//
-	HANDLE _hOutput{ GetStdHandle(STD_OUTPUT_HANDLE) };
+	HANDLE _hOutput{ nullptr };
 
 	// clear screen and draw menu items
 	void Draw();
@@ -229,3 +271,5 @@ protected:
 	void PrintMenuItem(const std::shared_ptr<MenuItem>& item) const;
 
 };
+
+}
