@@ -115,16 +115,11 @@ namespace Menu {
 	void MenuNode::Add(std::shared_ptr<MenuItem> node)
 	{
 		// add to vector
-		if (_inCallback)
-			_modifiedInCallback = true;
-
 		auto ptr = std::dynamic_pointer_cast<MenuNode>(node);
 		if (ptr)
 		{
 			ptr->SetMaxVisibleMenuItems(_maxVisibleItems);
-			ptr->SetOutputHandle(_hOutput);
 		}
-
 
 		_menuItems.emplace_back(node);
 
@@ -144,10 +139,40 @@ namespace Menu {
 	{
 		Clear();
 
+		// update deleted elements
+		for (auto it = _menuItems.begin(); it != _menuItems.end(); ++it)
+		{
+			if (it->get()->Deleted())
+			{
+				// set nect selected
+				SetNextSelected();
+
+				// if marked to delete remove element
+				it = _menuItems.erase(it);
+
+				// on empty
+				if (_menuItems.empty())
+				{
+					OnBack();
+					return;
+				}
+
+				// check for break condition
+				if (it == _menuItems.end())
+				{
+					break;
+				}
+			}
+		}
+
+		auto fromIt = _menuItems.begin();
+		auto toIt = _menuItems.end();
+
 		if (_maxVisibleItems < _menuItems.size())
 		{
-			auto fromIt = GetSelectedMenuIterator();
-			auto toIt = std::next(fromIt);
+			fromIt = GetSelectedMenuIterator();
+			toIt = std::next(fromIt);
+
 			auto usedCount = 1u;
 			auto directionUp = true;
 			while (!(usedCount == _maxVisibleItems || usedCount == _menuItems.size()))
@@ -173,13 +198,11 @@ namespace Menu {
 				}
 				directionUp = !directionUp;
 			}
-
-			for (auto it = fromIt; it != toIt; ++it)
-				PrintMenuItem(*it);
 		}
-		else
-			for (const auto &item : _menuItems)
-				PrintMenuItem(item);
+		for (auto it = fromIt; it != toIt; ++it)
+		{
+			PrintMenuItem(*it);
+		}
 	}
 
 	void MenuNode::Clear() const
@@ -244,9 +267,7 @@ namespace Menu {
 			}
 			// show message
 			if (item->IsMessageVisible())
-			{
 				_outstream << item->GetMessage();
-			}
 			_outstream << std::endl;
 		}
 	}
@@ -261,20 +282,15 @@ namespace Menu {
 		auto it = GetSelectedMenuIterator();
 		if (it != _menuItems.end())
 		{
-			_inCallback = true;
 			it->get()->RunCallback();
-			_inCallback = false;
 
-			if (_modifiedInCallback)
-			{
-				_modifiedInCallback = false;
-				it = GetSelectedMenuIterator();
-				if (it != _menuItems.end())
-					it->get()->Execute();
-			}
+			it = GetSelectedMenuIterator();
+			if (it != _menuItems.end())
+				it->get()->Execute();
 			else
 			{
-				it->get()->Execute();
+				OnBack();
+				return;
 			}
 		}
 		Draw();
@@ -468,12 +484,15 @@ namespace Menu {
 		return _hotkeys.find(hotkey) != _hotkeys.end();
 	}
 
+	std::shared_ptr<MenuItem> MenuNode::GetSelectedItem()
+	{
+		return *GetSelectedMenuIterator();
+	}
+
 	void MenuNode::Execute()
 	{
 		if (_hOutput == nullptr)
-		{
 			return;
-		}
 
 		if (!_menuItems.empty())
 		{
@@ -537,13 +556,18 @@ namespace Menu {
 		return _menuItems;
 	}
 
-	void MenuNode::SetOutputHandle(HANDLE handle)
-	{
-		_hOutput = handle;
-	}
-
 	void* MenuItem::GetContext() const
 	{
 		return _assotiatedContext;
+	}
+
+	void MenuItem::Delete()
+	{
+		_pending_delete = true;
+	}
+
+	bool MenuItem::Deleted() const
+	{
+		return _pending_delete;
 	}
 }

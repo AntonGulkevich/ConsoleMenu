@@ -25,6 +25,8 @@ namespace Menu
 #endif
 class MenuItem
 {
+	// todo
+	bool _pending_delete{ false };
 
 protected:
 
@@ -128,6 +130,11 @@ public:
 	//
 	void * GetContext() const;
 
+	//
+	void Delete();
+
+	//
+	bool Deleted() const;
 };
 
 class MenuNode : public MenuItem
@@ -166,9 +173,6 @@ public:
 	// Call menu
 	void Execute() override;
 
-	//
-	void SetOutputHandle(HANDLE handle);
-
 	// Reset all menu items
 	void Reset();
 
@@ -192,10 +196,6 @@ public:
 	size_t GetMaxVisibleMenuItems() const;
 
 private:
-
-	// modification lock
-	bool _inCallback{ false };
-	bool _modifiedInCallback{ false };
 
 	// vector of menu items
 	std::vector<std::shared_ptr<MenuItem>> _menuItems;
@@ -224,6 +224,7 @@ private:
 	void ResetSelected();
 	void SetFirtsSelected();
 	void SetLastSelected();
+
 	// return selected menu iterator on success or end on failure
 	auto GetSelectedMenuIterator()
 	{
@@ -239,9 +240,11 @@ private:
 public:
 
 	// return mutable selected item
-	std::shared_ptr<MenuItem> GetSelectedItem()
+	std::shared_ptr<MenuItem> GetSelectedItem();
+
+	void RemoveSelectedItem()
 	{
-		return *GetSelectedMenuIterator();
+		GetSelectedMenuIterator()->get()->Delete();
 	}
 
 protected:
@@ -250,7 +253,7 @@ protected:
 	bool _isProcessing{ false };
 
 	//
-	HANDLE _hOutput{ nullptr };
+	HANDLE _hOutput{ GetStdHandle(STD_OUTPUT_HANDLE) };
 
 	// clear screen and draw menu items
 	void Draw();
