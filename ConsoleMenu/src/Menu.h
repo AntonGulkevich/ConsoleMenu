@@ -18,43 +18,46 @@ namespace Menu
 	using tstring = std::basic_string<TCHAR, std::char_traits<TCHAR>, std::allocator<TCHAR>>;
 	using tcout = std::basic_ostream<TCHAR, std::char_traits<TCHAR>>;
 	
-#ifdef UNICODE
-#define GETCH  _getwch
-#else
-#define GETCH  _getch
-#endif
 class MenuItem
 {
-	// todo
+	// true if marked as deleted
 	bool _pending_delete{ false };
+
+	// 
+	bool _callbackResult{ false };
+
+	// 
+	bool _showMessage{ false };
 
 protected:
 
+	// menu text 
 	tstring _caption{ _T("") };
+
+	// hotkey 0-if not in use
 	size_t _hotkey{ 0u };
+
+	// callback
 	std::function<bool()> _callback{ nullptr };
+
+	// true if menu item is visible
 	bool _isVisible{ true };
+
+	// true if item is selected
 	bool _isSelected{ false };
 
-	// message
+	// message shown after callback executes with error
 	tstring _errorMessage { _T("Error") };
+
+	// message shown after callback executes with success
 	tstring _successMessage{ _T("Success") };
-	bool _showMessage{ false };
-	bool _callbackResult{ false };
+
+	// true if error or success message are visible
 	bool _alwaysShowMessage{ true };
 
 	// context assotiated with this menu
 	void * _assotiatedContext{ nullptr };
 
-	//
-	tcout & _outstream
-	{ 
-#ifdef UNICODE
-		std::wcout
-#else
-		std::cout
-#endif
-	};
 public:
 
 	// default c-tor
@@ -195,6 +198,12 @@ public:
 	// return maximum visible menu items count
 	size_t GetMaxVisibleMenuItems() const;
 
+	// return mutable selected item
+	std::shared_ptr<MenuItem> GetSelectedItem();
+
+	// removes selected item if it exists
+	void RemoveSelectedItem();
+
 private:
 
 	// vector of menu items
@@ -218,7 +227,10 @@ private:
 	// maximum visible menu items
 	size_t _maxVisibleItems{ 3u };
 
+	//
 	void OnBack();
+
+	// selection modifiers
 	void SetNextSelected();
 	void SetPreviousSelected();
 	void ResetSelected();
@@ -226,51 +238,52 @@ private:
 	void SetLastSelected();
 
 	// return selected menu iterator on success or end on failure
-	auto GetSelectedMenuIterator()
-	{
-		return std::find_if(_menuItems.begin(), _menuItems.end(), [](auto&& item) { return item->IsSelected(); });
-	}
+	std::vector<std::shared_ptr<MenuItem>>::iterator GetSelectedMenuIterator();
+
 	void AssignHotkey(std::reference_wrapper<std::shared_ptr<MenuItem>> item);
 
 	bool IsHotkeyAvailable(size_t hotkey);
 
 	bool IsHotKeyInUse(size_t hotkey);
 
-
-public:
-
-	// return mutable selected item
-	std::shared_ptr<MenuItem> GetSelectedItem();
-
-	void RemoveSelectedItem()
-	{
-		GetSelectedMenuIterator()->get()->Delete();
-	}
-
-protected:
-
-	// 
-	bool _isProcessing{ false };
-
-	//
-	HANDLE _hOutput{ GetStdHandle(STD_OUTPUT_HANDLE) };
-
 	// clear screen and draw menu items
 	void Draw();
-
-	// clear screen or part of it
-	void Clear() const;
 
 	// run callback if it is available and draw menu items
 	void OnEnter();
 
-	// execute key processing 
-	void ProcessKey();
-
 	// if hotkey is available set its menu item selected and redraw menu
 	void ProcessHotKey(int32_t code);
 
-	// draw single men item
+	// true if node is processing keys input
+	bool _isProcessing{ false };
+
+protected:
+
+	//
+	tcout & _outstream
+	{
+#ifdef UNICODE
+		std::wcout
+#else
+		std::cout
+#endif
+	};
+
+	// hadle for console output
+	HANDLE _hOutput{ GetStdHandle(STD_OUTPUT_HANDLE) };
+
+	// clear screen or part of it
+	void Clear() const;
+
+	// blocking function that await key input
+	// return key code
+	static unsigned short GetKey();
+
+	// execute key processing
+	void ProcessKey();
+
+	// draw single menu item
 	void PrintMenuItem(const std::shared_ptr<MenuItem>& item) const;
 
 };

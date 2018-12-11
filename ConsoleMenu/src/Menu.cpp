@@ -268,6 +268,8 @@ namespace Menu {
 			// show message
 			if (item->IsMessageVisible())
 				_outstream << item->GetMessage();
+
+			// new ine and synchronization
 			_outstream << std::endl;
 		}
 	}
@@ -300,11 +302,12 @@ namespace Menu {
 	{
 		while (_isProcessing)
 		{
-			//Draw();
-			auto ch = GETCH();
+			auto ch = GetKey();
 			if (ch == 0 || ch == 224)
 			{
-				ch = GETCH();
+				// due to guidlines need to call this function twice
+				// depends on implementation of getch analogs
+				ch = GetKey();
 				switch (ch)
 				{
 				case 75:
@@ -418,6 +421,11 @@ namespace Menu {
 		_menuItems.back()->Select();
 	}
 
+	std::vector<std::shared_ptr<MenuItem>>::iterator MenuNode::GetSelectedMenuIterator()
+	{
+		return std::find_if(_menuItems.begin(), _menuItems.end(), [](auto&& item) { return item->IsSelected(); });
+	}
+
 	void MenuItem::Connect(std::function<bool()> callback)
 	{
 		_callback = callback;
@@ -487,6 +495,13 @@ namespace Menu {
 	std::shared_ptr<MenuItem> MenuNode::GetSelectedItem()
 	{
 		return *GetSelectedMenuIterator();
+	}
+
+	void MenuNode::RemoveSelectedItem()
+	{
+		auto it = GetSelectedMenuIterator();
+		if (it != _menuItems.end())
+			it->get()->Delete();
 	}
 
 	void MenuNode::Execute()
@@ -569,5 +584,15 @@ namespace Menu {
 	bool MenuItem::Deleted() const
 	{
 		return _pending_delete;
+	}
+
+	unsigned short MenuNode::GetKey()
+	{
+#ifdef UNICODE
+#define GETCH  _getwch
+#else
+#define GETCH  _getch
+#endif
+		return GETCH();
 	}
 }
