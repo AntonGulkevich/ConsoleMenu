@@ -82,7 +82,8 @@
       <SubSystem>Windows</SubSystem>
     </Link>
     <PostBuildEvent>
-      <Command>copy /Y "$(SolutionDir)$(Configuration)\$(ProjectName).lib" "$(SolutionDir)\Libs\x86\debug\$(ProjectName).lib"</Command>
+      <Command>md "$(SolutionDir)Libs\x86\debug\"
+copy /Y "$(SolutionDir)$(Configuration)\$(ProjectName).lib" "$(SolutionDir)\Libs\x86\debug\$(ProjectName).lib"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -97,7 +98,8 @@
       <SubSystem>Windows</SubSystem>
     </Link>
     <PostBuildEvent>
-      <Command>copy /Y "$(SolutionDir)$(Platform)\$(Configuration)\$(ProjectName).lib" "$(SolutionDir)\Libs\x64\debug\$(ProjectName).lib"</Command>
+      <Command>md "$(SolutionDir)Libs\x64\debug"
+copy /y "$(SolutionDir)$(Platform)\$(Configuration)\$(ProjectName).lib" "$(SolutionDir)Libs\x64\debug\$(ProjectName).lib"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -117,7 +119,8 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
     <PostBuildEvent>
-      <Command>copy /Y "$(SolutionDir)$(Configuration)\$(ProjectName).lib" "$(SolutionDir)\Libs\x86\release\$(ProjectName).lib"</Command>
+      <Command>md "$(SolutionDir)\Libs\x86\release"
+copy /Y "$(SolutionDir)$(Configuration)\$(ProjectName).lib" "$(SolutionDir)\Libs\x86\release\$(ProjectName).lib"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -137,7 +140,8 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
     <PostBuildEvent>
-      <Command>copy /Y "$(SolutionDir)$(Platform)\$(Configuration)\$(ProjectName).lib" "$(SolutionDir)\Libs\x64\release\$(ProjectName).lib"</Command>
+      <Command>md "$(SolutionDir)\Libs\x64\release"
+copy /Y "$(SolutionDir)$(Platform)\$(Configuration)\$(ProjectName).lib" "$(SolutionDir)\Libs\x64\release\$(ProjectName).lib"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
