@@ -139,9 +139,11 @@ namespace Menu {
 	{
 		Clear();
 
-		// update deleted elements
+		auto isAnySelected = false;
+
 		for (auto it = _menuItems.begin(); it != _menuItems.end(); ++it)
 		{
+			// update deleted elements
 			if (it->get()->Deleted())
 			{
 				// set nect selected
@@ -163,6 +165,20 @@ namespace Menu {
 					break;
 				}
 			}
+			//zero selection conflicts
+			if (it->get()->IsSelected())
+			{
+				if (isAnySelected)
+					it->get()->Release();
+				else
+					isAnySelected = true;
+			}
+
+		}
+		// release multiple selection
+		if (!isAnySelected && !_menuItems.empty())
+		{
+			_menuItems.begin()->get()->Select();
 		}
 
 		auto fromIt = _menuItems.begin();

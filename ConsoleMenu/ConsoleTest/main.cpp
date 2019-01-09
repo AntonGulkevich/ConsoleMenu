@@ -19,6 +19,8 @@ void DeleteTest()
 
 	auto node_1{ std::make_shared<MenuNode>(_T("Node 1")) };
 	auto node_2{ std::make_shared<MenuNode>(_T("Node 2")) };
+	auto node_3{ std::make_shared<MenuNode>(_T("Multiple Selection")) };
+
 
 	auto item11{ std::make_shared<MenuNode>(_T("Item 1")) };
 	auto item12{ std::make_shared<MenuNode>(_T("Item 2")) };
@@ -42,6 +44,7 @@ void DeleteTest()
 
 	main_menu.Add(node_1);
 	main_menu.Add(node_2);
+	main_menu.Add(node_3);
 
 	item11->Add(removeThisItem);
 	item12->Add(removeThisItem);
@@ -55,18 +58,29 @@ void DeleteTest()
 	item24->Add(removeThisItem);
 	item25->Add(removeThisItem);
 
-	node_1->Add(std::move(item11));
-	node_1->Add(std::move(item12));
-	node_1->Add(std::move(item13));
-	node_1->Add(std::move(item14));
-	node_1->Add(std::move(item15));
+	node_1->Add(item11);
+	node_1->Add(item12);
+	node_1->Add(item13);
+	node_1->Add(item14);
+	node_1->Add(item15);
 
-	node_2->Add(std::move(item21));
-	node_2->Add(std::move(item22));
-	node_2->Add(std::move(item23));
-	node_2->Add(std::move(item24));
-	node_2->Add(std::move(item25));
+	node_2->Add(item21);
+	node_2->Add(item22);
+	node_2->Add(item23);
+	node_2->Add(item24);
+	node_2->Add(item25);
 
+	node_3->Add(std::move(item11));
+	node_3->Add(std::move(item12));
+	node_3->Add(std::move(item13));
+	node_3->Add(std::move(item14));
+	node_3->Add(std::move(item15));
+
+	node_3->Add(std::move(item21));
+	node_3->Add(std::move(item22));
+	node_3->Add(std::move(item23));
+	node_3->Add(std::move(item24));
+	node_3->Add(std::move(item25));
 
 
 	main_menu.Execute();
