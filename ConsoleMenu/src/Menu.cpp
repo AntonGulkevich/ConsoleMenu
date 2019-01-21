@@ -147,7 +147,7 @@ namespace Menu {
 			// update deleted elements
 			if (it->get()->Deleted())
 			{
-				// set nect selected
+				// set next selected
 				SetNextSelected();
 
 				// if marked to delete remove element
@@ -219,6 +219,13 @@ namespace Menu {
 		{
 			PrintMenuItem(*it);
 		}
+
+		// draw frame
+		for (auto&& _menuFrame : _menuFrames)
+		{
+			if (_menuFrame->IsVisible())
+			_menuFrame->Draw();
+		}
 	}
 
 	void MenuNode::Clear() const
@@ -264,6 +271,11 @@ namespace Menu {
 
 	void MenuNode::PrintMenuItem(const std::shared_ptr<MenuItem>& item) const
 	{
+
+		//if(SetConsoleCursorPosition(_hOutput, COORD{0, 0}) == 0)
+		//{
+		//	assert(false);
+		//}
 		if (item->IsVisible())
 		{
 			_outstream << (item->IsSelected() ? _T("->") : _T("  ")) << std::left << std::setw(_hotkeyOffset + 3) << item->GetCaption();
@@ -337,6 +349,7 @@ namespace Menu {
 				case 72:
 					/* up arrow handling */
 					SetPreviousSelected();
+
 					Draw();
 					break;
 				case 80:
@@ -520,6 +533,12 @@ namespace Menu {
 			it->get()->Delete();
 	}
 
+	void MenuNode::AddFrame(std::shared_ptr<MenuFrame> frame)
+	{
+		frame->SetConsole(_hOutput);
+		_menuFrames.emplace_back(frame);
+	}
+
 	void MenuNode::Execute()
 	{
 		if (_hOutput == nullptr)
@@ -610,5 +629,246 @@ namespace Menu {
 #define GETCH  _getch
 #endif
 		return GETCH();
+	}
+
+	void MenuFrame::ClearList()
+	{
+		_list_string.clear();
+	}
+
+	void MenuFrame::AddLine(const tstring& str)
+	{
+		_list_string.emplace_back(std::make_unique<tstring>(str));
+	}
+
+	void MenuFrame::AddLine(std::unique_ptr<tstring> str)
+	{
+		_list_string.emplace_back(std::move(str));
+	}
+
+	void MenuFrame::AddLine(const TCHAR* _pstr)
+	{
+		AddLine(tstring(_pstr));
+	}
+
+	void MenuFrame::SetHeight(short heigth)
+	{
+		_height = heigth;
+	}
+
+	void MenuFrame::SetWidth(short width)
+	{
+		_width = width;
+	}
+
+	short MenuFrame::GetHeight() const
+	{
+		return _height;
+	}
+
+	short MenuFrame::GetWidth() const
+	{
+		return _width;
+	}
+
+	void MenuFrame::SetCaption(const tstring& str)
+	{
+		_caption.assign(str);
+	}
+
+	void MenuFrame::SetCaption(const TCHAR* _pstr)
+	{
+		_caption.assign(_pstr);
+	}
+
+
+
+	void MenuFrame::Draw()
+	{
+		//draw grid
+		{
+			CONSOLE_SCREEN_BUFFER_INFO csbi;
+			GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+
+			const auto maxLength = csbi.dwSize.X - 1;
+			const auto rightBoeder = _width + _left_offset;
+			const auto clearLength = (rightBoeder > maxLength ? maxLength : rightBoeder) - _left_offset - (_show_vertical_border ? 2 : 0) + 1;
+
+			COORD coord = { _left_offset, _top_offet };
+
+			const auto beforelast = _height - 1;
+
+			for (auto i = 0u; i < _height; ++i)
+			{
+				SetConsoleCursorPosition(_hOutput, coord);
+
+				TCHAR  ls = _T(' ');
+				TCHAR  rs = _T(' ');
+				TCHAR  hs = _T(' ');
+				if (_show_vertical_border)
+				{
+					ls = _vertical_border_symbol;
+					rs = _vertical_border_symbol;
+					if (i == 0)
+					{
+						ls = _top_left_border_symbol;
+						rs = _top_right_border_symbol;
+					}
+
+					if (i == beforelast)
+					{
+						ls = _bot_left_border_symbol;
+						rs = _bot_right_border_symbol;
+					}
+				}
+				if (_show_horizontal_border)
+				{
+					if (i == 0 || i == beforelast)
+						hs = _horizontal_border_symbol;
+				}
+
+				_outstream
+					<< ls << std::right
+					<< std::setfill(hs)
+					<< std::setw(clearLength)
+					<< rs;
+
+				// draw caption
+				if (_show_caption && i == 0)
+				{
+
+					auto visible_size = _caption.size() > clearLength ? clearLength : _caption.size();
+					short half_of_visible = visible_size / 2;
+
+					//
+					short left_offset = clearLength / 2 - half_of_visible;
+
+					//
+					SetConsoleCursorPosition(_hOutput, COORD{ left_offset + _left_offset, coord.Y});
+					_outstream << _caption;
+				}
+
+				//
+				++coord.Y;
+			}
+		}
+		// draw context
+
+		//
+		auto available_width = _width;
+
+		COORD coord = { _left_offset, _top_offet };
+
+		if (_show_vertical_border)
+		{
+			++coord.X;
+			available_width -= 2;
+			if (_width < 0)
+				available_width = 0;
+		}
+
+		if (_show_horizontal_border)
+			coord.Y += 1;
+
+		int available_lines = _height - (_show_horizontal_border ? 2u : 0u);
+
+		if (available_lines > 0)
+		{
+			//
+			auto firstListIter = 0;
+
+			if (_list_string.size() > available_lines)
+			{
+				firstListIter = _list_string.size() - available_lines;
+			}
+
+			auto realLines = available_lines > _list_string.size() ? _list_string.size() : available_lines;
+
+			for (auto i = 0; i < realLines; ++i)
+			{
+				if (SetConsoleCursorPosition(_hOutput, coord) == 0)
+				{
+					auto ret = GetLastError();
+					assert(false);
+				}
+				++coord.Y;
+
+				if (_list_string.at(firstListIter).get()->length() > available_width)
+				{
+					_outstream << _list_string.at(firstListIter).get()->substr(0, available_width - 3) << _T("...");
+				}
+				else
+					_outstream << *(_list_string.at(firstListIter).get());
+				++firstListIter;
+			}
+		}
+	}
+
+	void MenuFrame::Clear() const
+	{
+		if (_hOutput)
+		{
+			CONSOLE_SCREEN_BUFFER_INFO csbi;
+			GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+
+			const auto maxLength = csbi.dwSize.X - 1;
+			const auto rightBoeder = _width + _left_offset;
+			const auto clearLength = (rightBoeder > maxLength ? maxLength : rightBoeder) - _left_offset;
+
+			COORD coord = { _left_offset, _top_offet };
+			for (auto i = 0u; i < _height; ++i)
+			{
+				// If the function fails, the return value is zero.
+				if (SetConsoleCursorPosition(_hOutput, coord) == 0)
+				{
+					auto ret = GetLastError();
+					assert(false && "failed to SetConsoleCursorPosition");
+				}
+				_outstream << _T(' ') << std::setfill(_T(' ')) << std::setw(clearLength) << _T(' ');
+
+				//
+				++coord.Y;
+			}
+		}
+	}
+
+	void MenuFrame::SetConsole(HANDLE console_handle)
+	{
+		_hOutput = console_handle;
+	}
+
+	MenuFrame::MenuFrame(const tstring& str)
+	{
+		_caption = str;
+	}
+
+	void MenuFrame::SetLeftOffset(short left_offset)
+	{
+		_left_offset = left_offset;
+	}
+
+	void MenuFrame::SetTopOffset(short top_offset)
+	{
+		_top_offet = top_offset;
+	}
+
+	bool MenuFrame::IsVisible() const
+	{
+		return _is_visible;
+	}
+
+	void MenuFrame::Hide()
+	{
+		_is_visible = false;
+	}
+
+	void MenuFrame::Show()
+	{
+		_is_visible = true;
+	}
+
+	void MenuFrame::Update()
+	{
+		Draw();
 	}
 }
