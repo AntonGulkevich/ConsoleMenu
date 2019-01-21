@@ -139,6 +139,7 @@ namespace Menu {
 	{
 		Clear();
 
+		// flag to resolve zero selection issue and multiple selection conflicts
 		auto isAnySelected = false;
 
 		for (auto it = _menuItems.begin(); it != _menuItems.end(); ++it)
@@ -165,7 +166,8 @@ namespace Menu {
 					break;
 				}
 			}
-			//zero selection conflicts
+
+			//resolve zero selection issue
 			if (it->get()->IsSelected())
 			{
 				if (isAnySelected)
@@ -175,11 +177,9 @@ namespace Menu {
 			}
 
 		}
-		// release multiple selection
+		// resolve multiple selection conflicts
 		if (!isAnySelected && !_menuItems.empty())
-		{
 			_menuItems.begin()->get()->Select();
-		}
 
 		auto fromIt = _menuItems.begin();
 		auto toIt = _menuItems.end();

@@ -145,9 +145,6 @@ copy /Y "$(SolutionDir)$(Platform)\$(Configuration)\$(ProjectName).lib" "$(Solut
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <Text Include="ReadMe.txt" />
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="src\Menu.h" />
   </ItemGroup>
   <ItemGroup>
