@@ -3,15 +3,37 @@
 #include <io.h>
 #include <fcntl.h>
 #include "../src/Menu.h"
+#include <thread>
 #pragma comment(lib, "ConsoleMenu.lib")
 
 using namespace  Menu;
+
+bool running {true};
 
 bool Delete(std::shared_ptr<MenuNode> node)
 {
 	node->RemoveSelectedItem();
 	return true;
 }
+
+void Frame1AddLine(std::shared_ptr<MenuFrame> &frame, DWORD speed)
+{
+	uint32_t count = 0;
+
+	while (count < 1000 && running)
+	{
+		tstring str;
+		str.append(_T("Line ") + std::to_wstring(count++));
+		if (count % 3 == 0)
+			str.append(_T("very long line very long line very long linevery long line"));
+		frame->AddLine(str);
+		Sleep(speed);
+	}
+}
+
+std::thread _threadFrame1;
+std::thread _threadFrame2;
+
 
 void DeleteTest()
 {
@@ -20,10 +42,8 @@ void DeleteTest()
 
 	main_menu.SetMaxVisibleMenuItems(10);
 
-
 	auto frame1{ std::make_shared<MenuFrame>(_T("Frame 1")) };
 	auto frame2{ std::make_shared<MenuFrame>(_T("Frame 2")) };
-
 
 	auto counter = 0u;
 
@@ -60,7 +80,6 @@ void DeleteTest()
 		if (counter % 3 == 0)
 			str.append(_T("very long line very long line very long linevery long line"));
 		frame1->AddLine(str);
-		frame1->Update();
 		return true;
 	});
 
@@ -68,7 +87,6 @@ void DeleteTest()
 	resetAllLines->Connect([&]()
 	{
 		frame1->ClearList();
-		frame1->Update();
 		return true;
 	});
 
@@ -76,7 +94,6 @@ void DeleteTest()
 	increaseWidth->Connect([&]()
 	{
 		frame2->SetWidth(frame2->GetWidth()+1);
-		frame2->Update();
 		return true;
 	});
 
@@ -87,9 +104,16 @@ void DeleteTest()
 
 		if (width > 20)
 			--width;
-		frame2->Clear();
+
 		frame2->SetWidth(width);
-		frame2->Update();
+		return true;
+	});
+
+	auto clearFrame1{ std::make_shared<MenuItem>(_T("Clear frame 1")) };
+
+	clearFrame1->Connect([&]()
+	{
+		frame1->ClearList();
 		return true;
 	});
 
@@ -121,7 +145,7 @@ void DeleteTest()
 	item11->Add(resetAllLines);
 	item11->Add(decreaseWidth);
 	item11->Add(increaseWidth);
-
+	item11->Add(clearFrame1);
 
 	item12->Add(removeThisItem);
 	item13->Add(removeThisItem);
@@ -133,7 +157,6 @@ void DeleteTest()
 	item23->Add(removeThisItem);
 	item24->Add(removeThisItem);
 	item25->Add(removeThisItem);
-
 	
 
 	node_1->Add(item11);
@@ -160,8 +183,12 @@ void DeleteTest()
 	node_3->Add(std::move(item24));
 	node_3->Add(std::move(item25));
 
+	_threadFrame1 = std::thread(&Frame1AddLine, frame1, 200);
+
+	_threadFrame2 = std::thread(&Frame1AddLine, frame2, 400);
 
 	main_menu.Execute();
+	running = false;
 }
 
 int _tmain(int argc, TCHAR *argv[])
@@ -170,6 +197,12 @@ int _tmain(int argc, TCHAR *argv[])
 	_setmode(_fileno(stdout), _O_U16TEXT);
 
 	DeleteTest();
+
+	if (_threadFrame1.joinable())
+		_threadFrame1.join();
+
+	if (_threadFrame2.joinable())
+		_threadFrame2.join();
 
 	return 0;
 }

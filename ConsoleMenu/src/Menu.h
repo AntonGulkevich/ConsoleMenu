@@ -10,11 +10,13 @@
 #include <windows.h>
 #include <TCHAR.h>
 #include <iostream>
+#include <mutex>
 
 #undef GetMessage
 
 namespace Menu
 {
+
 	using tstring = std::basic_string<TCHAR, std::char_traits<TCHAR>, std::allocator<TCHAR>>;
 	using tcout = std::basic_ostream<TCHAR, std::char_traits<TCHAR>>;
 
@@ -32,8 +34,12 @@ namespace Menu
 		 * 8. Optimization (update only if info changed)
 		 *
 		 */
+		//std::mutex _update_mutex;
 
-		 // menu text 
+		// grid changed
+		bool _update_grid{ true };
+
+		// menu text 
 		tstring _caption{ _T("New frame.") };
 
 		//
@@ -49,12 +55,6 @@ namespace Menu
 		short _height{ 10u };
 
 #ifdef UNICODE 
-		//
-		//TCHAR _vertical_border_symbol{ _T('\x2502') };
-		//TCHAR _top_left_border_symbol{ _T('\x250E') };
-		//TCHAR _top_right_border_symbol{ _T('\x2512') };
-		//TCHAR _bot_left_border_symbol{ _T('\x2516') };
-		//TCHAR _bot_right_border_symbol{ _T('\x251A') };
 		TCHAR _vertical_border_symbol{ _T('\x2502') };
 		TCHAR _top_left_border_symbol{ _T('\x2552') };
 		TCHAR _top_right_border_symbol{ _T('\x2555') };
@@ -83,6 +83,18 @@ namespace Menu
 
 		//
 		std::vector <std::unique_ptr <tstring>> _list_string;
+
+		//
+		void DrawGrid();
+
+		//
+		void Draw();
+
+		//
+		void Clear();
+
+		//
+		void ClearText() const;
 
 	protected:
 
@@ -126,14 +138,8 @@ namespace Menu
 		void SetCaption(const TCHAR * _pstr);
 
 		//
-		void Draw();
-
-		//
 		void SetLeftOffset(short left_offset);
 		void SetTopOffset(short top_offset);
-
-		//
-		void Clear() const;
 
 		//
 		bool IsVisible() const;
@@ -142,7 +148,10 @@ namespace Menu
 
 		//
 		void Update();
-		};
+
+		// return count of lines
+		size_t GetLineSize() const;
+	};
 
 	class MenuItem
 	{
@@ -333,8 +342,6 @@ namespace Menu
 		//
 		void AddFrame(std::shared_ptr<MenuFrame> frame);
 
-
-
 	private:
 
 		// vector of frames
@@ -397,6 +404,8 @@ namespace Menu
 
 	protected:
 
+		std::mutex _drawMutex;
+
 		//
 		tcout & _outstream
 		{
@@ -422,7 +431,6 @@ namespace Menu
 
 		// draw single menu item
 		void PrintMenuItem(const std::shared_ptr<MenuItem>& item) const;
+	};
 
-		};
-
-	}
+}

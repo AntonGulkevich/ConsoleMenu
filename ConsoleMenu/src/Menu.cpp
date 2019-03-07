@@ -9,6 +9,8 @@
 
 namespace Menu {
 
+	std::mutex global_set_pos_mutex;
+
 	void MenuItem::SetContext(void* context)
 	{
 		_assotiatedContext = context;
@@ -137,6 +139,8 @@ namespace Menu {
 	}
 	void MenuNode::Draw()
 	{
+		std::lock_guard<std::mutex>lc(_drawMutex);
+
 		Clear();
 
 		// flag to resolve zero selection issue and multiple selection conflicts
@@ -215,21 +219,38 @@ namespace Menu {
 				directionUp = !directionUp;
 			}
 		}
-		for (auto it = fromIt; it != toIt; ++it)
+
 		{
-			PrintMenuItem(*it);
+			std::lock_guard<std::mutex> lk(global_set_pos_mutex);
+
+			COORD coord = { 0, 0 };
+
+			// If the function fails, the return value is zero.
+			if (SetConsoleCursorPosition(_hOutput, coord) == 0)
+			{
+				auto ret = GetLastError();
+				assert(false);
+			}
+
+			for (auto it = fromIt; it != toIt; ++it)
+				PrintMenuItem(*it);
 		}
 
 		// draw frame
 		for (auto&& _menuFrame : _menuFrames)
 		{
 			if (_menuFrame->IsVisible())
-			_menuFrame->Draw();
+			{
+				_menuFrame->Update();
+			}
 		}
 	}
 
 	void MenuNode::Clear() const
 	{
+		std::lock_guard<std::mutex> lk(global_set_pos_mutex);
+
+
 		COORD coord = { 0, 0 };
 		// If the function fails, the return value is zero.
 		if (SetConsoleCursorPosition(_hOutput, coord) == 0)
@@ -243,13 +264,6 @@ namespace Menu {
 
 		for (auto i = 0u; i < _maxVisibleItems; ++i)
 			_outstream << std::setfill(_T(' ')) << std::setw(csbi.dwSize.X - 1) << _T(" ") << std::endl;
-
-		// If the function fails, the return value is zero.
-		if (SetConsoleCursorPosition(_hOutput, coord) == 0)
-		{
-			auto ret = GetLastError();
-			assert(false);
-		}
 	}
 
 	void MenuNode::ProcessHotKey(int32_t code)
@@ -271,14 +285,10 @@ namespace Menu {
 
 	void MenuNode::PrintMenuItem(const std::shared_ptr<MenuItem>& item) const
 	{
-
-		//if(SetConsoleCursorPosition(_hOutput, COORD{0, 0}) == 0)
-		//{
-		//	assert(false);
-		//}
+		_outstream << std::setfill(_T(' ')) << std::left;
 		if (item->IsVisible())
 		{
-			_outstream << (item->IsSelected() ? _T("->") : _T("  ")) << std::left << std::setw(_hotkeyOffset + 3) << item->GetCaption();
+			_outstream << (item->IsSelected() ? _T("->") : _T("  ")) << std::setw(_hotkeyOffset + 3) << item->GetCaption();
 			auto hotkey = item->GetHotKey();
 			if (hotkey)
 			{
@@ -633,12 +643,14 @@ namespace Menu {
 
 	void MenuFrame::ClearList()
 	{
+		ClearText();
 		_list_string.clear();
 	}
 
 	void MenuFrame::AddLine(const tstring& str)
 	{
 		_list_string.emplace_back(std::make_unique<tstring>(str));
+		Update();
 	}
 
 	void MenuFrame::AddLine(std::unique_ptr<tstring> str)
@@ -653,12 +665,18 @@ namespace Menu {
 
 	void MenuFrame::SetHeight(short heigth)
 	{
+		_update_grid = true;
+		Clear();
 		_height = heigth;
+		Update();
 	}
 
 	void MenuFrame::SetWidth(short width)
 	{
+		_update_grid = true;
+		Clear();
 		_width = width;
+		Update();
 	}
 
 	short MenuFrame::GetHeight() const
@@ -673,20 +691,157 @@ namespace Menu {
 
 	void MenuFrame::SetCaption(const tstring& str)
 	{
+		_update_grid = true;
+		Clear();
 		_caption.assign(str);
+		Update();
 	}
 
 	void MenuFrame::SetCaption(const TCHAR* _pstr)
 	{
+		_update_grid = true;
+		Clear();
 		_caption.assign(_pstr);
+		Update();
 	}
-
-
 
 	void MenuFrame::Draw()
 	{
-		//draw grid
+		if (_hOutput != nullptr)
 		{
+			// draw context
+			auto available_width = _width;
+
+			COORD coord = { _left_offset, _top_offet };
+
+			if (_show_vertical_border)
+			{
+				++coord.X;
+				available_width -= 2;
+				if (_width < 0)
+					available_width = 0;
+			}
+
+			if (_show_horizontal_border)
+				coord.Y += 1;
+
+			int available_lines = _height - (_show_horizontal_border ? 2u : 0u);
+
+			if (available_lines > 0)
+			{
+				//
+				auto firstListIter = 0;
+
+				if (_list_string.size() > available_lines)
+				{
+					firstListIter = _list_string.size() - available_lines;
+				}
+
+				auto realLines = available_lines > _list_string.size() ? _list_string.size() : available_lines;
+
+				for (auto i = 0; i < realLines; ++i)
+				{
+					if (SetConsoleCursorPosition(_hOutput, coord) == 0)
+					{
+						auto ret = GetLastError();
+						assert(false);
+					}
+					++coord.Y;
+
+					if (_list_string.at(firstListIter).get()->length() > available_width)
+						_outstream << _list_string.at(firstListIter).get()->substr(0, available_width - 3) << _T("...");
+					else
+						_outstream << std::left << std::setw(_width - 2) << std::setfill(_T(' ')) << *(_list_string.at(firstListIter).get());
+
+					++firstListIter;
+				}
+			}
+		}
+	}
+
+	void MenuFrame::Clear()
+	{
+		std::lock_guard<std::mutex> lk(global_set_pos_mutex);
+
+		if (_hOutput)
+		{
+			CONSOLE_SCREEN_BUFFER_INFO csbi;
+			GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
+
+			const auto maxLength = csbi.dwSize.X - 1;
+			const auto rightBoeder = _width + _left_offset - 1;
+			const auto clearLength = (rightBoeder > maxLength ? maxLength : rightBoeder) - _left_offset;
+
+			COORD coord = { _left_offset, _top_offet };
+			for (auto i = 0u; i < _height; ++i)
+			{
+				// If the function fails, the return value is zero.
+				if (SetConsoleCursorPosition(_hOutput, coord) == 0)
+				{
+					auto ret = GetLastError();
+					assert(false && "failed to SetConsoleCursorPosition");
+				}
+				_outstream << _T(' ') << std::setfill(_T(' ')) << std::setw(clearLength) << _T(' ');
+
+				//
+				++coord.Y;
+			}
+			_update_grid = true;
+		}
+	}
+
+	void MenuFrame::SetConsole(HANDLE console_handle)
+	{
+		_hOutput = console_handle;
+	}
+
+	MenuFrame::MenuFrame(const tstring& str)
+	{
+		_caption = str;
+	}
+
+	void MenuFrame::SetLeftOffset(short left_offset)
+	{
+		_left_offset = left_offset;
+	}
+
+	void MenuFrame::SetTopOffset(short top_offset)
+	{
+		_top_offet = top_offset;
+	}
+
+	bool MenuFrame::IsVisible() const
+	{
+		return _is_visible;
+	}
+
+	void MenuFrame::Hide()
+	{
+		Clear();
+		_is_visible = false;
+		Update();
+	}
+
+	void MenuFrame::Show()
+	{
+		_is_visible = true;
+		Update();
+	}
+
+	void MenuFrame::Update()
+	{
+		std::lock_guard<std::mutex> lk(global_set_pos_mutex);
+
+		if (_update_grid)
+			DrawGrid();
+		Draw();
+	}
+
+	void MenuFrame::DrawGrid()
+	{
+		if (_hOutput != nullptr)
+		{
+			//draw grid
 			CONSOLE_SCREEN_BUFFER_INFO csbi;
 			GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
 
@@ -744,131 +899,35 @@ namespace Menu {
 					short left_offset = clearLength / 2 - half_of_visible;
 
 					//
-					SetConsoleCursorPosition(_hOutput, COORD{ left_offset + _left_offset, coord.Y});
+					SetConsoleCursorPosition(_hOutput, COORD{ left_offset + _left_offset, coord.Y });
 					_outstream << _caption;
 				}
 
 				//
 				++coord.Y;
 			}
+			_update_grid = false;
 		}
-		// draw context
+	}
 
-		//
-		auto available_width = _width;
+	size_t MenuFrame::GetLineSize() const
+	{
+		return _list_string.size();
+	}
 
-		COORD coord = { _left_offset, _top_offet };
+	void MenuFrame::ClearText() const
+	{
 
-		if (_show_vertical_border)
+		auto coords = COORD{ _left_offset + (_show_vertical_border ? 1: 0 ), _top_offet + (_show_horizontal_border ? 1 : 0) };
+		auto vertical = _height - (_show_horizontal_border ? 2 : 0);
+		const auto hor = _width - (_show_vertical_border ? 2 : 0);
+		DWORD count;
+
+		while (vertical--)
 		{
-			++coord.X;
-			available_width -= 2;
-			if (_width < 0)
-				available_width = 0;
+			std::lock_guard<std::mutex> lk(global_set_pos_mutex);
+			FillConsoleOutputCharacter(_hOutput, _T(' '), hor, coords, &count);
+			++coords.Y;
 		}
-
-		if (_show_horizontal_border)
-			coord.Y += 1;
-
-		int available_lines = _height - (_show_horizontal_border ? 2u : 0u);
-
-		if (available_lines > 0)
-		{
-			//
-			auto firstListIter = 0;
-
-			if (_list_string.size() > available_lines)
-			{
-				firstListIter = _list_string.size() - available_lines;
-			}
-
-			auto realLines = available_lines > _list_string.size() ? _list_string.size() : available_lines;
-
-			for (auto i = 0; i < realLines; ++i)
-			{
-				if (SetConsoleCursorPosition(_hOutput, coord) == 0)
-				{
-					auto ret = GetLastError();
-					assert(false);
-				}
-				++coord.Y;
-
-				if (_list_string.at(firstListIter).get()->length() > available_width)
-				{
-					_outstream << _list_string.at(firstListIter).get()->substr(0, available_width - 3) << _T("...");
-				}
-				else
-					_outstream << *(_list_string.at(firstListIter).get());
-				++firstListIter;
-			}
-		}
-	}
-
-	void MenuFrame::Clear() const
-	{
-		if (_hOutput)
-		{
-			CONSOLE_SCREEN_BUFFER_INFO csbi;
-			GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
-
-			const auto maxLength = csbi.dwSize.X - 1;
-			const auto rightBoeder = _width + _left_offset;
-			const auto clearLength = (rightBoeder > maxLength ? maxLength : rightBoeder) - _left_offset;
-
-			COORD coord = { _left_offset, _top_offet };
-			for (auto i = 0u; i < _height; ++i)
-			{
-				// If the function fails, the return value is zero.
-				if (SetConsoleCursorPosition(_hOutput, coord) == 0)
-				{
-					auto ret = GetLastError();
-					assert(false && "failed to SetConsoleCursorPosition");
-				}
-				_outstream << _T(' ') << std::setfill(_T(' ')) << std::setw(clearLength) << _T(' ');
-
-				//
-				++coord.Y;
-			}
-		}
-	}
-
-	void MenuFrame::SetConsole(HANDLE console_handle)
-	{
-		_hOutput = console_handle;
-	}
-
-	MenuFrame::MenuFrame(const tstring& str)
-	{
-		_caption = str;
-	}
-
-	void MenuFrame::SetLeftOffset(short left_offset)
-	{
-		_left_offset = left_offset;
-	}
-
-	void MenuFrame::SetTopOffset(short top_offset)
-	{
-		_top_offet = top_offset;
-	}
-
-	bool MenuFrame::IsVisible() const
-	{
-		return _is_visible;
-	}
-
-	void MenuFrame::Hide()
-	{
-		_is_visible = false;
-	}
-
-	void MenuFrame::Show()
-	{
-		_is_visible = true;
-	}
-
-	void MenuFrame::Update()
-	{
-		Draw();
 	}
 }
